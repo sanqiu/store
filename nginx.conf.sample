@@ -1,0 +1,83 @@
+# fastcgi nodes
+upstream  backend  {
+    server unix:/var/run/php5-fpm.sock;
+}
+
+# redirect all non-www requests to www requests (it would be easy to reverse this)
+server {
+    listen   80 default_server;
+    server_name  radarlighting.com;
+    rewrite ^/(.*) http://www.radarlighting.com/$1 permanent;
+}
+
+server {
+    listen       80;
+    server_name www.radarlighting.com;
+    rewrite ^/home\.html$  / permanent;
+    rewrite ^/about-us\.html$  /about-us permanent;
+    rewrite  ^/odm\.html$  /odm permanent;
+    rewrite  ^/blog\.html$  /blog permanent;
+    rewrite  ^/contacts\.html$  /contacts permanent;
+    rewrite  ^/privacy\.html$  /privacy permanent;
+    rewrite   ^/services\.html$  /services permanent;
+    rewrite  ^/others\.html$  /others permanent;
+
+    # protection (we have no .htaccess)
+    location ~ (/(app/|includes/|/pkginfo/|var/|report/config.xml)|/\.svn/|/\.git|/.hta.+) {
+        deny all;
+    }
+   # pass php files over to PHP-FPM via the socket
+    location ~ (\.php)$ {
+        fastcgi_index index.php;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param PATH_INFO $document_root$fastcgi_path_info;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        if (-e $request_filename) { # check if requested path exists
+            fastcgi_pass backend;
+        }
+    }
+    # the javascript compressor
+    location ^~ /js/index.php {
+        fastcgi_pass   backend;
+        fastcgi_index index.php;
+        fastcgi_param  SCRIPT_NAME $fastcgi_script_name;
+        fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+        include /etc/nginx/fastcgi_params;
+        access_log off;
+        expires 30d;
+    }
+   # special case for the error "report" pages
+    location /report/ {
+        fastcgi_index index.php;
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param  SCRIPT_NAME /report/index.php;
+        fastcgi_param  SCRIPT_FILENAME  /var/www/html/report/index.php;
+        if (!-f $request_filename) {
+            fastcgi_pass backend;
+            break;
+        }
+    }
+    # pass everything else over to PHP-FPM via the socket
+    location / {
+        root /var/www/html; ## absolute path doc root
+        index index.php index.html index.htm;
+
+        # set expire headers
+        if ($request_uri ~* "\.(ico|css|js|gif|jpe?g|png)$") {
+            expires max;
+        }
+        # set fastcgi settings, not allowed in the "if" block
+        include /etc/nginx/fastcgi_params;
+        fastcgi_param PATH_INFO $document_root$fastcgi_path_info;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SCRIPT_NAME /index.php;
+        # rewrite - if file not found, pass it to the backend
+        if (!-f $request_filename) {
+            fastcgi_pass backend;
+            break;
+        }
+    #    error_page 404 index.php;
+    }
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log;
+}
