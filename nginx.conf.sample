@@ -1,18 +1,13 @@
 # fastcgi nodes
 upstream  backend  {
-    server unix:/var/run/php5-fpm.sock;
-}
-
-# redirect all non-www requests to www requests (it would be easy to reverse this)
-server {
-    listen   80 default_server;
-    server_name  radarlighting.com;
-    rewrite ^/(.*) http://www.radarlighting.com/$1 permanent;
+    server unix:/var/run/php-fpm.sock;
 }
 
 server {
-    listen       80;
+    listen 80;
     server_name www.radarlighting.com;
+    root /var/www/radar;
+    rewrite ^/(.*) http://www.radarlighting.com/$1 permanent;
     rewrite ^/home\.html$  / permanent;
     rewrite ^/about-us\.html$  /about-us permanent;
     rewrite  ^/odm\.html$  /odm permanent;
@@ -51,7 +46,7 @@ server {
         fastcgi_index index.php;
         include /etc/nginx/fastcgi_params;
         fastcgi_param  SCRIPT_NAME /report/index.php;
-        fastcgi_param  SCRIPT_FILENAME  /var/www/html/report/index.php;
+        fastcgi_param  SCRIPT_FILENAME  /var/www/radar/report/index.php;
         if (!-f $request_filename) {
             fastcgi_pass backend;
             break;
@@ -59,7 +54,7 @@ server {
     }
     # pass everything else over to PHP-FPM via the socket
     location / {
-        root /var/www/html; ## absolute path doc root
+#        root /var/www/radar; ## absolute path doc root
         index index.php index.html index.htm;
 
         # set expire headers
